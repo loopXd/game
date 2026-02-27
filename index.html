@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Pixel Adventure Melhorado</title>
+
+<style>
+    body {
+        margin: 0;
+        background: #1e1e2e;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        font-family: monospace;
+    }
+
+    canvas {
+        image-rendering: pixelated;
+        width: 960px;
+        height: 540px;
+        border: 6px solid black;
+        background: #87CEEB;
+    }
+
+    #message {
+        position: absolute;
+        color: white;
+        font-size: 28px;
+        text-shadow: 3px 3px black;
+        display: none;
+    }
+
+    #tutorial {
+        position: absolute;
+        top: 10%;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(30, 30, 46, 0.9);
+        border: 3px solid #ffde59;
+        padding: 12px 18px;
+        color: #fff;
+        font-size: 16px;
+        text-align: center;
+        box-shadow: 4px 4px #000;
+        display: none;
+        animation: fadeIn 0.6s ease;
+    }
+
+    #tutorial b {
+        color: #ffde59;
+    }
+
+    @keyframes fadeIn {
+        from {
+            opacity: 0;
+            transform: translateX(-50%) translateY(-10px);
+        }
+        to {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+    }
+
+</style>
+</head>
+<body>
+
+<div id="message">✨ Você encontrou o Tesouro! ✨</div>
+<div id="tutorial">
+    <p>➡️⬅️ Use as setas para andar</p>
+    <p>🗝️ Pressione <b>E</b> perto do baú</p>
+</div>
+<canvas id="game" width="320" height="180"></canvas>
+
+<script>
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+const message = document.getElementById("message");
+
+const groundY = 120;
+
+const leaves = [];
+
+let grassPattern = [];
+
+let clouds = [
+    { x: 20, y: 20 },
+    { x: 180, y: 30 }
+];
+
+const tutorial = document.getElementById("tutorial");
+
+// PLAYER
+const player = {
+    x: 30,
+    y: groundY,
+    width: 24,
+    height: 32,
+    speed: 1.5,
+    direction: 1,
+    moving: false,
+    frame: 0,
+    frameTimer: 0,
+    idleTimer: 0,
+    breathing: 0
+};
+
+// CHEST
+const chest = {
+    x: 260,
+    y: groundY + 16,
+    width: 20,
+    height: 16,
+    opened: false
+};
+
+const animals = [
+    { x: 120, y: groundY + 16, dir: 1, type: "chicken" }
+];
+
+const keys = {};
+
+// mostrar após 3 segundos
+setTimeout(() => {
+    tutorial.style.display = "block";
+
+    // desaparecer depois de 5 segundos
+    setTimeout(() => {
+        tutorial.style.display = "none";
+    }, 5000);
+
+}, 3000);
+
+document.addEventListener("keydown", e => {
+    keys[e.key] = true;
+
+    if (e.key.toLowerCase() === "e") {
+        if (isNearChest() && !chest.opened) {
+            chest.opened = true;
+            message.style.display = "block";
+        }
+    }
+});
+
+document.addEventListener("keyup", e => {
+    keys[e.key] = false;
+});
+
+function isNearChest() {
+    return Math.abs(player.x - chest.x) < 25;
+}
+
+function update() {
+    player.moving = false;
+
+    if (keys["ArrowRight"] && player.x < canvas.width - player.width) {
+        player.x += player.speed;
+        player.direction = 1;
+        player.moving = true;
+    }
+
+    if (keys["ArrowLeft"] && player.x > 0) {
+        player.x -= player.speed;
+        player.direction = -1;
+        player.moving = true;
+    }
+
+    // animação caminhada 4 frames
+    if (player.moving) {
+        player.frameTimer++;
+        if (player.frameTimer > 8) {
+            player.frame = (player.frame + 1) % 4;
+            player.frameTimer = 0;
+        }
+        player.idleTimer = 0;
+    } else {
+        // idle animation
+        player.idleTimer++;
+        player.breathing = Math.sin(player.idleTimer * 0.05) * 1;
+    }
+
+    updateAnimals();
+
+    updateLeaves();
+
+    updateClouds();
+}
+
+function generateGrass() {
+    grassPattern = [];
+    for (let i = 0; i < canvas.width; i += 3) {
+        grassPattern.push(Math.random() > 0.5);
+    }
+}
+
+generateGrass();
+
+function updateClouds() {
+    clouds.forEach(c => {
+        c.x += 0.1;
+        if (c.x > canvas.width + 40) c.x = -40;
+    });
+}
+
+
+function updateLeaves() {
+    for (let i = leaves.length - 1; i >= 0; i--) {
+        const l = leaves[i];
+
+        l.timer++;
+        l.y += l.speed;
+        l.x += Math.sin(l.timer * 0.1) * 0.2;
+
+        if (l.y > canvas.height) {
+            leaves.splice(i, 1);
+        }
+    }
+}
+
+function spawnLeaf(x, y) {
+    leaves.push({
+        x: x + Math.random() * 20,
+        y: y,
+        speed: 0.3 + Math.random() * 0.5,
+        sway: Math.random() * 2,
+        timer: Math.random() * 100
+    });
+}
+
+function updateAnimals() {
+    animals.forEach(a => {
+        a.x += 0.25 * a.dir;
+
+        if (Math.random() < 0.003) a.dir *= -1;
+
+        if (a.x < 0) a.dir = 1;
+        if (a.x > canvas.width - 16) a.dir = -1;
+
+        // animação simples
+        a.timer++;
+        if (a.timer > 20) {
+            a.frame = (a.frame + 1) % 2;
+            a.timer = 0;
+        }
+    });
+}
+
+function drawClouds() {
+    ctx.fillStyle = "white";
+
+    clouds.forEach(c => {
+        ctx.fillRect(c.x, c.y, 30, 10);
+        ctx.fillRect(c.x + 10, c.y - 5, 25, 10);
+    });
+}
+
+function drawLeaves() {
+    leaves.forEach(l => {
+        ctx.fillStyle = "#3a7f2c";
+        ctx.fillRect(l.x, l.y, 2, 2);
+    });
+}
+
+function drawAnimals() {
+    animals.forEach(a => {
+        ctx.save();
+
+        // virar conforme direção
+        if (a.dir === -1) {
+            ctx.translate(a.x + 14, a.y);
+            ctx.scale(-1, 1);
+        } else {
+            ctx.translate(a.x, a.y);
+        }
+
+        // corpo
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(2, 4, 10, 8);
+
+        // sombra do corpo
+        ctx.fillStyle = "#e6e6e6";
+        ctx.fillRect(2, 8, 10, 4);
+
+        // cabeça
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(10, 2, 6, 6);
+
+        // bico
+        ctx.fillStyle = "#ffcc33";
+        ctx.fillRect(15, 4, 3, 2);
+
+        // crista
+        ctx.fillStyle = "#cc2222";
+        ctx.fillRect(11, 0, 3, 2);
+
+        // olho
+        ctx.fillStyle = "#222";
+        ctx.fillRect(12, 4, 1, 1);
+
+        // pernas animadas (não flutuando)
+        ctx.fillStyle = "#ffcc33";
+
+        if (a.frame === 0) {
+            ctx.fillRect(4, 12, 1, 4);
+            ctx.fillRect(8, 12, 1, 4);
+        } else {
+            ctx.fillRect(5, 12, 1, 4);
+            ctx.fillRect(9, 12, 1, 4);
+        }
+
+        ctx.restore();
+    });
+}
+
+function drawSky() {
+    ctx.fillStyle = "#87CEEB";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+}
+
+function drawGround() {
+    ctx.fillStyle = "#3cb043";
+    ctx.fillRect(0, groundY + player.height, canvas.width, 50);
+
+    for (let i = 0; i < grassPattern.length; i++) {
+        ctx.fillStyle = grassPattern[i] ? "#2f8f2f" : "#4ccf4c";
+        ctx.fillRect(i * 3, groundY + player.height - 2, 2, 4);
+    }
+}
+
+function drawTree(x, index = 0) {
+    const sway = Math.sin(Date.now() * 0.001 + index) * 1;
+
+    // tronco com movimento
+    ctx.fillStyle = "#7a4a1f";
+    ctx.fillRect(x + 10 + sway, groundY + 12, 6, 20);
+
+    ctx.fillStyle = "#5c3310";
+    ctx.fillRect(x + 12 + sway, groundY + 12, 2, 20);
+
+    // folhas (camadas)
+    ctx.fillStyle = "#2f8f2f";
+    ctx.fillRect(x + sway, groundY - 8, 26, 18);
+
+    ctx.fillStyle = "#3fa33f";
+    ctx.fillRect(x + 4 + sway, groundY - 12, 18, 14);
+
+    ctx.fillStyle = "#58c058";
+    ctx.fillRect(x + 8 + sway, groundY - 16, 10, 10);
+
+    // folhas caindo
+    if (Math.random() < 0.01) {
+        spawnLeaf(x + 10, groundY - 10);
+    }
+}
+
+function drawPlayer() {
+    ctx.save();
+
+    if (player.direction === -1) {
+        ctx.translate(player.x + player.width, player.y + player.breathing);
+        ctx.scale(-1, 1);
+    } else {
+        ctx.translate(player.x, player.y + player.breathing);
+    }
+
+    // CABELO loiro escorrido
+    ctx.fillStyle = "#f5d142";
+    ctx.fillRect(6, 0, 12, 6);
+    ctx.fillRect(5, 6, 4, 14);
+    ctx.fillRect(15, 6, 4, 14);
+
+    // sombra cabelo
+    ctx.fillStyle = "#caa92f";
+    ctx.fillRect(6, 0, 12, 2);
+    ctx.fillRect(5, 10, 3, 8);
+    ctx.fillRect(16, 10, 3, 8);
+
+    // rosto
+    ctx.fillStyle = "#ffdbac";
+    ctx.fillRect(8, 6, 8, 10);
+
+    // olhos
+    ctx.fillStyle = "#2b2b2b";
+    ctx.fillRect(10, 10, 2, 2);
+    ctx.fillRect(14, 10, 2, 2);
+
+    // vestido
+    ctx.fillStyle = "#ff5ca8";
+    ctx.fillRect(8, 16, 8, 10);
+
+    ctx.fillStyle = "#cc3f86";
+    ctx.fillRect(8, 22, 8, 4);
+
+    // braços
+    ctx.fillStyle = "#ffdbac";
+    ctx.fillRect(6, 17, 2, 7);
+
+    // pernas 4 frames
+    ctx.fillStyle = "#3a3a3a";
+
+    const frames = [
+        [9, 13],
+        [8, 14],
+        [9, 13],
+        [10, 12]
+    ];
+
+    ctx.fillRect(frames[player.frame][0], 26, 3, 6);
+    ctx.fillRect(frames[player.frame][1], 26, 3, 6);
+
+    ctx.restore();
+}
+
+function drawChest() {
+    ctx.save();
+
+    // sombra no chão
+    ctx.fillStyle = "rgba(0,0,0,0.2)";
+    ctx.fillRect(chest.x + 2, chest.y + chest.height, chest.width - 4, 3);
+
+    if (chest.opened) {
+        // base aberta
+        ctx.fillStyle = "#8b4513";
+        ctx.fillRect(chest.x, chest.y + 6, chest.width, chest.height - 6);
+
+        // interior
+        ctx.fillStyle = "#ffde59";
+        ctx.fillRect(chest.x + 2, chest.y + 8, chest.width - 4, chest.height - 10);
+
+        // tampa aberta
+        ctx.fillStyle = "#a0522d";
+        ctx.fillRect(chest.x, chest.y, chest.width, 6);
+
+        // detalhe metálico
+        ctx.fillStyle = "#d4af37";
+        ctx.fillRect(chest.x + 6, chest.y + 2, 8, 2);
+    } else {
+        // base
+        ctx.fillStyle = "#8b4513";
+        ctx.fillRect(chest.x, chest.y + 6, chest.width, chest.height - 6);
+
+        // tampa
+        ctx.fillStyle = "#a0522d";
+        ctx.fillRect(chest.x, chest.y, chest.width, 8);
+
+        // sombra tampa
+        ctx.fillStyle = "#6b2e10";
+        ctx.fillRect(chest.x, chest.y + 6, chest.width, 2);
+
+        // detalhes metálicos
+        ctx.fillStyle = "#d4af37";
+        ctx.fillRect(chest.x + 4, chest.y + 2, 2, 6);
+        ctx.fillRect(chest.x + chest.width - 6, chest.y + 2, 2, 6);
+
+        // fechadura
+        ctx.fillStyle = "#ffd700";
+        ctx.fillRect(chest.x + chest.width / 2 - 2, chest.y + 6, 4, 4);
+    }
+
+    ctx.restore();
+}
+
+function draw() {
+    drawSky();
+    drawClouds();
+
+    drawTree(60, 1);
+    drawTree(120, 2);
+    drawTree(200, 3);
+
+    drawLeaves();
+
+    drawGround();
+    drawAnimals();
+    drawChest();
+    drawPlayer();
+}
+
+function gameLoop() {
+    update();
+    draw();
+    requestAnimationFrame(gameLoop);
+}
+
+gameLoop();
+</script>
+
+</body>
+</html>
